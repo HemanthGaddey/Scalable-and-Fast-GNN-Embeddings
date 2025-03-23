@@ -95,51 +95,68 @@ adjlist* mkadjlist(edgelist* el){
 }
 
 //reading the list of edges and building the adjacency array
-adjlist* readadjlist(char* input){
-  unsigned long n1=NNODES,n2,u,v,i;
-  unsigned long *d=calloc(n1,sizeof(unsigned long));
-  adjlist *g=malloc(sizeof(adjlist));
+adjlist* readadjlist(char* input) {
+  unsigned long n1 = NNODES, n2, u, v, i;
+  long double w; // Weight as long double
+  unsigned long *d = calloc(n1, sizeof(unsigned long));
+  adjlist *g = malloc(sizeof(adjlist));
   FILE *file;
 
-  g->n=0;
-  g->e=0;
-  file=fopen(input,"r");//first reading to compute the degrees
-  while (fscanf(file,"%lu %lu", &u, &v)==2) {
+  g->n = 0;
+  g->e = 0;
+  g->totalWeight = 0.0L; // Initialize as long double
+  g->emax = 0; // Not used, but initialize
+  g->edges = NULL; // Not used in this function
+  file = fopen(input, "r"); // First reading to compute degrees and total weight
+  if (!file) {
+    perror("Failed to open input file");
+    exit(1);
+  }
+  while (fscanf(file, "%lu %lu %Lf", &u, &v, &w) == 3) {
     g->e++;
-    g->n=max3(g->n,u,v);
-    if (g->n+1>=n1) {
-      n2=g->n+NNODES;
-      d=realloc(d,n2*sizeof(unsigned long));
-      bzero(d+n1,(n2-n1)*sizeof(unsigned long));
-      n1=n2;
+    g->n = max3(g->n, u, v);
+    if (g->n + 1 >= n1) {
+      n2 = g->n + NNODES;
+      d = realloc(d, n2 * sizeof(unsigned long));
+      bzero(d + n1, (n2 - n1) * sizeof(unsigned long));
+      n1 = n2;
     }
     d[u]++;
     d[v]++;
+    g->totalWeight += w; // Add weight to total
   }
   fclose(file);
 
   g->n++;
-  d=realloc(d,g->n*sizeof(unsigned long));
+  d = realloc(d, g->n * sizeof(unsigned long));
 
-  g->cd=malloc((g->n+1)*sizeof(unsigned long long));
-  g->cd[0]=0;
-  for (i=1;i<g->n+1;i++) {
-    g->cd[i]=g->cd[i-1]+d[i-1];
-    d[i-1]=0;
+  g->cd = malloc((g->n + 1) * sizeof(unsigned long long));
+  g->cd[0] = 0;
+  for (i = 1; i < g->n + 1; i++) {
+    g->cd[i] = g->cd[i - 1] + d[i - 1];
+    d[i - 1] = 0;
   }
 
-  g->adj=malloc(2*g->e*sizeof(unsigned long));
+  g->adj = malloc(2 * g->e * sizeof(unsigned long));
+  g->weights = malloc(2 * g->e * sizeof(long double)); // Allocate weights as long double
 
-  file=fopen(input,"r");//secong reading to fill the adjlist
-  while (fscanf(file,"%lu %lu", &u, &v)==2) {
-    g->adj[ g->cd[u] + d[u]++ ]=v;
-    g->adj[ g->cd[v] + d[v]++ ]=u;
+  file = fopen(input, "r"); // Second reading to fill adjlist and weights
+  if (!file) {
+    perror("Failed to open input file again");
+    exit(1);
+  }
+  while (fscanf(file, "%lu %lu %Lf", &u, &v, &w) == 3) {
+    g->adj[g->cd[u] + d[u]] = v;
+    g->weights[g->cd[u] + d[u]] = w; // Store weight for u->v
+    d[u]++;
+    g->adj[g->cd[v] + d[v]] = u;
+    g->weights[g->cd[v] + d[v]] = w; // Store weight for v->u (undirected)
+    d[v]++;
   }
   fclose(file);
 
-  g->weights = NULL;
-  g->totalWeight = 2*g->e;
-  g->map=NULL;
+  g->totalWeight *= 2.0L; // Double total weight for undirected graph
+  g->map = NULL;
 
   free(d);
 
@@ -325,11 +342,11 @@ adjlist** mkchildren(adjlist* g, unsigned long* lab, unsigned long nlab){
 
 
 //Make the nlab subgraphs of graph g using the labels "lab". Make the subgraphs ne by one...
-adjlist* mkchild(adjlist* g, unsigned long* lab, unsigned long nlab, unsigned h, unsigned long clab){
-  unsigned long i,u,v,lu;
-  unsigned long long j,k,tmp;
+adjlist* mkchild(adjlist* g, unsigned long* lab, unsigned long nlab, unsigned h, unsigned clab) {
+  unsigned long i, u, v, lu;
+  unsigned long long j, k, tmp;
 
-  static unsigned hmax=0;
+  static unsigned hmax = 0;
   static unsigned long **nodes;
   static unsigned long **new;
   static unsigned long long **cd;
@@ -337,72 +354,77 @@ adjlist* mkchild(adjlist* g, unsigned long* lab, unsigned long nlab, unsigned h,
   static unsigned long *d;
   adjlist* sg;
 
-  if (hmax==0){
-    hmax=HMAX;
-    nodes=malloc(HMAX*sizeof(unsigned long *));
-    new=malloc(HMAX*sizeof(unsigned long *));
-    cd=malloc(HMAX*sizeof(unsigned long long *));
-    e=malloc(HMAX*sizeof(unsigned long long *));
+  if (hmax == 0) {
+    hmax = HMAX;
+    nodes = malloc(HMAX * sizeof(unsigned long *));
+    new = malloc(HMAX * sizeof(unsigned long *));
+    cd = malloc(HMAX * sizeof(unsigned long long *));
+    e = malloc(HMAX * sizeof(unsigned long long *));
   }
-  if (h==hmax){
-    hmax+=HMAX;
-    nodes=realloc(nodes,hmax*sizeof(unsigned long *));
-    new=realloc(new,hmax*sizeof(unsigned long *));
-    cd=realloc(cd,hmax*sizeof(unsigned long long *));
-    e=realloc(e,hmax*sizeof(unsigned long long *));
+  if (h == hmax) {
+    hmax += HMAX;
+    nodes = realloc(nodes, hmax * sizeof(unsigned long *));
+    new = realloc(new, hmax * sizeof(unsigned long *));
+    cd = realloc(cd, hmax * sizeof(unsigned long long *));
+    e = realloc(e, hmax * sizeof(unsigned long long *));
   }
 
-  if (clab==0){
-    d=calloc(nlab,sizeof(unsigned long));
-    cd[h]=malloc((nlab+1)*sizeof(unsigned long long));
-    e[h]=calloc(nlab,sizeof(unsigned long long));
-    for (i=0;i<g->n;i++){
+  if (clab == 0) {
+    d = calloc(nlab, sizeof(unsigned long));
+    cd[h] = malloc((nlab + 1) * sizeof(unsigned long long));
+    e[h] = calloc(nlab, sizeof(unsigned long long));
+    for (i = 0; i < g->n; i++) {
       d[lab[i]]++;
     }
-    cd[h][0]=0;
-    for (i=0;i<nlab;i++){
-      cd[h][i+1]=cd[h][i]+d[i];
-      d[i]=0;
+    cd[h][0] = 0;
+    for (i = 0; i < nlab; i++) {
+      cd[h][i + 1] = cd[h][i] + d[i];
+      d[i] = 0;
     }
-    nodes[h]=malloc(g->n*sizeof(unsigned long));
-    new[h]=malloc(g->n*sizeof(unsigned long));
-    for (u=0;u<g->n;u++){
-      lu=lab[u];
-      nodes[h][cd[h][lu]+d[lu]]=u;
-      new[h][u]=d[lu]++;
-      for (j=g->cd[u];j<g->cd[u+1];j++){
-	v=g->adj[j];
-	if (lu==lab[v]){
-	  e[h][lu]++;
-	}
+    nodes[h] = malloc(g->n * sizeof(unsigned long));
+    new[h] = malloc(g->n * sizeof(unsigned long));
+    for (u = 0; u < g->n; u++) {
+      lu = lab[u];
+      nodes[h][cd[h][lu] + d[lu]] = u;
+      new[h][u] = d[lu]++;
+      for (j = g->cd[u]; j < g->cd[u + 1]; j++) {
+        v = g->adj[j];
+        if (lu == lab[v]) {
+          e[h][lu]++; // Count edges within community
+        }
       }
     }
     free(d);
   }
 
-  sg=malloc(sizeof(adjlist));
-  sg->n=cd[h][clab+1]-cd[h][clab];
-  sg->e=e[h][clab]/2;
-  sg->cd=malloc((sg->n+1)*sizeof(unsigned long long));
-  sg->cd[0]=0;
-  sg->adj=malloc(2*sg->e*sizeof(unsigned long));
-  sg->map=malloc(sg->n*sizeof(unsigned long));
-  sg->weights = NULL;
-  sg->totalWeight = 2*sg->e;
-  tmp=0;
-  for (k=cd[h][clab];k<cd[h][clab+1];k++){
-    u=nodes[h][k];
-    sg->map[new[h][u]]=(g->map==NULL)?u:g->map[u];//new[h][u] is equal to i-cd[h][clab]...
-    for (j=g->cd[u];j<g->cd[u+1];j++){
-      v=g->adj[j];
-      if (clab==lab[v]){//clab is equal to lab[u]
-	sg->adj[tmp++]=new[h][v];
+  sg = malloc(sizeof(adjlist));
+  sg->n = cd[h][clab + 1] - cd[h][clab];
+  sg->e = e[h][clab] / 2; // Number of undirected edges
+  sg->cd = malloc((sg->n + 1) * sizeof(unsigned long long));
+  sg->cd[0] = 0;
+  sg->adj = malloc(2 * sg->e * sizeof(unsigned long));
+  sg->weights = malloc(2 * sg->e * sizeof(long double)); // Allocate weights as long double
+  sg->totalWeight = 0.0L; // Initialize as long double
+  sg->emax = 0; // Not used
+  sg->edges = NULL; // Not used
+  sg->map = malloc(sg->n * sizeof(unsigned long));
+  tmp = 0;
+  for (k = cd[h][clab]; k < cd[h][clab + 1]; k++) {
+    u = nodes[h][k];
+    sg->map[new[h][u]] = (g->map == NULL) ? u : g->map[u];
+    for (j = g->cd[u]; j < g->cd[u + 1]; j++) {
+      v = g->adj[j];
+      if (clab == lab[v]) {
+        sg->adj[tmp] = new[h][v];
+        sg->weights[tmp] = g->weights[j]; // Copy weight from parent graph
+        sg->totalWeight += g->weights[j]; // Sum weights for subgraph
+        tmp++;
       }
     }
-    sg->cd[new[h][u]+1]=tmp;
+    sg->cd[new[h][u] + 1] = tmp;
   }
 
-  if (clab==nlab-1){
+  if (clab == nlab - 1) {
     free(nodes[h]);
     free(new[h]);
     free(cd[h]);
@@ -516,4 +538,3 @@ int main(int argc,char** argv){
 
   return 0;
 }
-
