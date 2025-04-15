@@ -276,7 +276,7 @@ for i in tqdm(range(128)):
     # reverse mapping the indices from virtual index to actual index
     org_aa_node_ids_attr = torch.tensor([rev_map_attr_edges[idx.item()] for idx in aa_node_ids_attr])
     aa_node_ids_attr, aa_embeddings_attr = append(org_aa_node_ids_attr, aa_embeddings_attr, data)
-    agg_type='concat' # sum/concat/avg
+    agg_type='sum' # sum/concat/avg
     result = evaluate_node_classification_latefusion(aa_node_ids_struc, aa_embeddings_struc, aa_node_ids_attr, aa_embeddings_attr, data, agg_type)
     a.append(result['micro_f1'])
     b.append(result['macro_f1'])

@@ -34,6 +34,7 @@ void* recvec(FILE* file1, FILE* file2, unsigned k, double a, double *vec){
 	if (fscanf(file1,"%u %lu", &h, &c)!=2){
 		printf("file reading error 1\n");
 	}
+	//printf("--> %f\n", h);
 	ah=pow(a,h);
 	if (vec==NULL){
 		vec=malloc(HMAX*k*sizeof(double));
@@ -49,7 +50,7 @@ void* recvec(FILE* file1, FILE* file2, unsigned k, double a, double *vec){
 			}
 			fprintf(file2,"%lu",u);
 			for (j=0;j<k;j++){
-				fprintf(file2," %le",vec[h*k+j]+rand1()*ah);
+				fprintf(file2," %le",vec[h*k+j]);
 			}
 			fprintf(file2,"\n");
 		}
